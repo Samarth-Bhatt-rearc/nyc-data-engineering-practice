@@ -22,7 +22,7 @@ resources:
           default: ${var.schema}
 
       tasks:
-        - task_key: python_wheel_task
+        - task_key: landing_data_task
           python_wheel_task:
             package_name: nyc_data_analysis_project
             entry_point: main
@@ -34,7 +34,7 @@ resources:
           environment_key: default
         - task_key: refresh_pipeline
           depends_on:
-            - task_key: python_wheel_task
+            - task_key: landing_data_task
           pipeline_task:
             pipeline_id: ${resources.pipelines.nyc_data_analysis_project_etl.id}
 

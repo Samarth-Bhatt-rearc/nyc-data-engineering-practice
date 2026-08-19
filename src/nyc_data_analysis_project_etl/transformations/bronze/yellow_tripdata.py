@@ -1,8 +1,4 @@
-import os
-import re
-from functools import reduce
-
-import dlt
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType, StringType, TimestampType
 
@@ -35,7 +31,9 @@ CANONICAL_SCHEMA = {
 
 # NYC TLC has re-used the "yellow_tripdata" file name across at least three
 # incompatible column-naming conventions. Map each era's source columns onto
-# CANONICAL_SCHEMA; missing columns are filled with nulls at read time.
+# CANONICAL_SCHEMA; missing columns are filled with nulls at read time. Each
+# era is landed into its own subfolder (see src/nyc_data_analysis_project/main.py)
+# so Auto Loader sees one stable schema per stream.
 ERA_2009_COLUMNS = {
     "vendor_name": "vendor_id",
     "Trip_Pickup_DateTime": "pickup_datetime",
@@ -105,19 +103,10 @@ MODERN_COLUMNS = {
     "total_amount": "total_amount",
 }
 
-FILE_NAME_PATTERN = re.compile(r"yellow_tripdata_(\d{4})-(\d{2})\.parquet")
+FILE_NAME_REGEX = r"yellow_tripdata_(\d{4})-(\d{2})\.parquet"
 
 
-def _column_mapping_for(year):
-    if year == 2009:
-        return ERA_2009_COLUMNS
-    if year == 2010:
-        return ERA_2010_COLUMNS
-    return MODERN_COLUMNS
-
-
-def _normalize(df, year, month, source_file):
-    mapping = _column_mapping_for(year)
+def _normalize(df, mapping):
     present_canonical = set()
     select_exprs = []
     for source_col, canonical_col in mapping.items():
@@ -128,30 +117,44 @@ def _normalize(df, year, month, source_file):
         if canonical_col not in present_canonical:
             select_exprs.append(F.lit(None).cast(dtype).alias(canonical_col))
 
+    file_path = F.col("_metadata.file_path")
     return (
         df.select(*select_exprs)
-        .withColumn("source_file", F.lit(source_file))
-        .withColumn("year", F.lit(year))
-        .withColumn("month", F.lit(month))
+        .withColumn("source_file", F.element_at(F.split(file_path, "/"), -1))
+        .withColumn("year", F.regexp_extract(file_path, FILE_NAME_REGEX, 1).cast("int"))
+        .withColumn("month", F.regexp_extract(file_path, FILE_NAME_REGEX, 2).cast("int"))
     )
 
 
-@dlt.table(
+def _read_era_stream(subfolder):
+    volume_path = spark.conf.get("source_volume_path")
+    return (
+        spark.readStream.format("cloudFiles")
+        .option("cloudFiles.format", "parquet")
+        .load(f"{volume_path}/{subfolder}")
+    )
+
+
+dp.create_streaming_table(
     name="yellow_tripdata_raw",
     comment=(
-        "Yellow taxi trip records normalized to one unified schema across every "
-        "published month (2009 onward), landed from the NYC TLC public dataset."
+        "Yellow taxi trip records normalized to one unified schema, incrementally "
+        "ingested via Auto Loader (one flow per schema era) so re-running the "
+        "pipeline only processes newly landed months, not the whole history."
     ),
 )
-def yellow_tripdata_raw():
-    volume_path = spark.conf.get("source_volume_path")
-    file_names = sorted(f for f in os.listdir(volume_path) if f.endswith(".parquet"))
 
-    normalized_frames = []
-    for file_name in file_names:
-        match = FILE_NAME_PATTERN.match(file_name)
-        year, month = int(match.group(1)), int(match.group(2))
-        df = spark.read.parquet(os.path.join(volume_path, file_name))
-        normalized_frames.append(_normalize(df, year, month, file_name))
 
-    return reduce(lambda left, right: left.unionByName(right), normalized_frames)
+@dp.append_flow(target="yellow_tripdata_raw", name="yellow_tripdata_legacy_2009")
+def yellow_tripdata_legacy_2009():
+    return _normalize(_read_era_stream("legacy_2009"), ERA_2009_COLUMNS)
+
+
+@dp.append_flow(target="yellow_tripdata_raw", name="yellow_tripdata_legacy_2010")
+def yellow_tripdata_legacy_2010():
+    return _normalize(_read_era_stream("legacy_2010"), ERA_2010_COLUMNS)
+
+
+@dp.append_flow(target="yellow_tripdata_raw", name="yellow_tripdata_modern")
+def yellow_tripdata_modern():
+    return _normalize(_read_era_stream("modern"), MODERN_COLUMNS)
