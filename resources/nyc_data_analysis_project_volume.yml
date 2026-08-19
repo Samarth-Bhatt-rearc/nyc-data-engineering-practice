@@ -1,12 +1,13 @@
 # Landing zone for raw Yellow Taxi trip data, staged from NYC TLC before the
 # Lakeflow pipeline reads it natively via Spark.
+#
+# No `resources.schemas` entry here on purpose: ${var.schema} (practice_data_area)
+# already exists in the workspace. Declaring a bundle-managed schema resource with
+# the same catalog/name causes Databricks Asset Bundles to auto-rebind this volume's
+# schema_name (and the pipeline's schema) to that resource — which then gets a
+# dev-mode "dev_<user>_" prefix, silently splitting resources across two schemas.
 
 resources:
-  schemas:
-    nyc_data_analysis_project_schema:
-      name: ${var.schema}
-      catalog_name: ${var.catalog}
-
   volumes:
     nyc_data_volume:
       name: nyc_data_volume

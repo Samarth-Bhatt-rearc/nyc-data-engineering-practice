@@ -6,14 +6,9 @@ resources:
       name: nyc_data_analysis_project_job
 
       trigger:
-        # Run this job every day, exactly one day from the last run; see https://docs.databricks.com/api/workspace/jobs/create#trigger
         periodic:
           interval: 1
           unit: DAYS
-
-      #email_notifications:
-      #  on_failure:
-      #    - your_email@example.com
 
       parameters:
         - name: catalog
@@ -43,7 +38,4 @@ resources:
           spec:
             environment_version: "4"
             dependencies:
-              # By default we just include the .whl file generated for the nyc_data_analysis_project package.
-              # See https://docs.databricks.com/dev-tools/bundles/library-dependencies.html
-              # for more information on how to add other libraries.
               - ../dist/*.whl
