@@ -8,9 +8,9 @@ resources:
       catalog_name: main
 
   volumes:
-    yellow_tripdata_raw:
-      name: yellow_tripdata_raw
-      catalog_name: main
+    nyc_data_volume:
+      name: nyc_data_volume
+      catalog_name: ${var.catalog}
       # Referencing the schema resource (rather than ${var.schema} directly) so the
       # bundle creates the schema before the volume.
       schema_name: ${resources.schemas.nyc_data_analysis_project_schema.name}

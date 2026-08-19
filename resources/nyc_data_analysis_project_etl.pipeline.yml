@@ -5,7 +5,7 @@ resources:
     nyc_data_analysis_project_etl:
       name: nyc_data_analysis_project_etl
       # Catalog is required for serverless compute
-      catalog: main
+      catalog: ${var.catalog}
       schema: ${var.schema}
       serverless: true
       root_path: "../src/nyc_data_analysis_project_etl"
@@ -17,7 +17,7 @@ resources:
       configuration:
         # Where the Yellow Taxi parquet files are landed (see src/nyc_data_analysis_project/main.py)
         # before this pipeline reads them.
-        source_volume_path: /Volumes/main/${var.schema}/yellow_tripdata_raw
+        source_volume_path: /Volumes/${var.catalog}/${var.schema}/nyc_data_volume
 
       environment:
         dependencies:

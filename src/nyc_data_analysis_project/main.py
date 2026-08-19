@@ -36,7 +36,7 @@ def main():
     parser.add_argument("--schema", required=True)
     args = parser.parse_args()
 
-    volume_path = f"/Volumes/{args.catalog}/{args.schema}/yellow_tripdata_raw"
+    volume_path = f"/Volumes/{args.catalog}/{args.schema}/nyc_data_volume"
     _land_yellow_tripdata(volume_path)
 
 

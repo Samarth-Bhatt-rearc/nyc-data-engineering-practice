@@ -30,8 +30,8 @@ targets:
     workspace:
       host: https://dbc-b31a694d-1da3.cloud.databricks.com
     variables:
-      catalog: hive_metastore
-      schema: dev
+      catalog: db_sandbox
+      schema: practice_data_area
   prod:
     mode: production
     workspace:
@@ -39,8 +39,8 @@ targets:
       # We explicitly deploy to /Workspace/Users/samarth.bhatt@rearc.io to make sure we only have a single copy.
       root_path: /Workspace/Users/samarth.bhatt@rearc.io/.bundle/${bundle.name}/${bundle.target}
     variables:
-      catalog: hive_metastore
-      schema: prod
+      catalog: db_sandbox
+      schema: practice_data_area
     permissions:
       - user_name: samarth.bhatt@rearc.io
         level: CAN_MANAGE
