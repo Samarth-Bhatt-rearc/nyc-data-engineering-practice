@@ -1,0 +1,17 @@
+# Landing zone for raw Yellow Taxi trip data, staged from NYC TLC before the
+# Lakeflow pipeline reads it natively via Spark.
+
+resources:
+  schemas:
+    nyc_data_analysis_project_schema:
+      name: ${var.schema}
+      catalog_name: main
+
+  volumes:
+    yellow_tripdata_raw:
+      name: yellow_tripdata_raw
+      catalog_name: main
+      # Referencing the schema resource (rather than ${var.schema} directly) so the
+      # bundle creates the schema before the volume.
+      schema_name: ${resources.schemas.nyc_data_analysis_project_schema.name}
+      volume_type: MANAGED

@@ -14,6 +14,11 @@ resources:
         - glob:
             include: ../src/nyc_data_analysis_project_etl/transformations/**
 
+      configuration:
+        # Where the Yellow Taxi parquet files are landed (see src/nyc_data_analysis_project/main.py)
+        # before this pipeline reads them.
+        source_volume_path: /Volumes/main/${var.schema}/yellow_tripdata_raw
+
       environment:
         dependencies:
           # We include every dependency defined by pyproject.toml by defining an editable environment
