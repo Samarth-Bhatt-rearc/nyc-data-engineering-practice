@@ -76,12 +76,12 @@ def replacing_nulls_with_default(df, column_name, default_value):
     ),
 )
 def yellow_tripdata_silver():
-    return (
-        spark.readStream.table("yellow_tripdata_raw")
-        .pipe(trim_whitespace)
-        .pipe(mapping_with_defaults, PAYMENT_TYPE_LOOKUP, "payment_type")
-        .pipe(mapping_with_defaults, VENDOR_LOOKUP, "vendor_id")
-        .pipe(mapping_with_defaults, STORE_AND_FWD_FLAG_LOOKUP, "store_and_fwd_flag", "N")
-        .pipe(replacing_nulls_with_default, "passenger_count", 99)
-        .pipe(replacing_nulls_with_default, "rate_code_id", 99)
-    )
+    # .pipe() isn't supported on serverless (Spark Connect) — chain via plain calls instead.
+    df = spark.readStream.table("yellow_tripdata_raw")
+    df = trim_whitespace(df)
+    df = mapping_with_defaults(df, PAYMENT_TYPE_LOOKUP, "payment_type")
+    df = mapping_with_defaults(df, VENDOR_LOOKUP, "vendor_id")
+    df = mapping_with_defaults(df, STORE_AND_FWD_FLAG_LOOKUP, "store_and_fwd_flag", "N")
+    df = replacing_nulls_with_default(df, "passenger_count", 99)
+    df = replacing_nulls_with_default(df, "rate_code_id", 99)
+    return df
