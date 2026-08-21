@@ -51,20 +51,23 @@ def trim_whitespace(df):
     return df.select([F.trim(F.col(c)).alias(c) if c in string_cols else F.col(c) for c in df.columns])
 
 # Map values with defaults
-def mapping_with_defaults(df, lookup, column_name, default_value="Unknown"):
+def mapping_with_defaults(df, lookup, column_name, default_value="Unknown", new_column_name=None):
+
+    if not new_column_name:
+        new_column_name = column_name
 
     # Initialize the expression with a dummy condition or the first key
     map_keys = list(lookup.keys())
-    expr = F.when(F.col(column_name) == map_keys[0], F.lit(lookup[map_keys[0]]))
+    expr = F.when(F.col(new_column_name) == map_keys[0], F.lit(lookup[map_keys[0]]))
 
     # Dynamically chain the rest of the dictionary
     for key in map_keys[1:]:
-        expr = expr.when(F.col(column_name) == key, F.lit(lookup[key]))
+        expr = expr.when(F.col(new_column_name) == key, F.lit(lookup[key]))
 
     # Provide a fallback default value to protect your 1.8B row dataset
     expr = expr.otherwise(F.lit(default_value))
 
-    return df.withColumn(column_name, F.initcap(F.col(column_name))).withColumn(column_name, expr)
+    return df.withColumn(new_column_name, F.initcap(F.col(column_name))).withColumn(new_column_name, expr)
 
 def replacing_nulls_with_default(df, column_name, default_value):
     return df.withColumn(column_name, F.when(F.col(column_name).isNull(), F.lit(default_value)).otherwise(F.col(column_name)))
@@ -80,7 +83,7 @@ def yellow_tripdata_silver():
     df = spark.readStream.table("yellow_tripdata_raw")
     df = trim_whitespace(df)
     df = mapping_with_defaults(df, PAYMENT_TYPE_LOOKUP, "payment_type")
-    df = mapping_with_defaults(df, VENDOR_LOOKUP, "vendor_id")
+    df = mapping_with_defaults(df, VENDOR_LOOKUP, "vendor_id", new_column_name="vendor_name")
     df = mapping_with_defaults(df, STORE_AND_FWD_FLAG_LOOKUP, "store_and_fwd_flag", "N")
     df = replacing_nulls_with_default(df, "passenger_count", 99)
     df = replacing_nulls_with_default(df, "rate_code_id", 99)
