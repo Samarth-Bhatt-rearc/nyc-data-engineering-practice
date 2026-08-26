@@ -1,0 +1,393 @@
+{
+  "datasets": [
+    {
+      "name": "ds_trip_summary",
+      "displayName": "Trip summary",
+      "queryLines": [
+        "SELECT year, month, make_date(year, month, 1) AS year_month, vendor_name, payment_type, ",
+        "       total_distance, avg_distance, trip_count ",
+        "FROM yellow_tripdata_gold "
+      ],
+      "columns": [
+        {"displayName": "Total Trips", "description": "Sum of trip_count across the selection", "expression": "SUM(`trip_count`)"},
+        {"displayName": "Total Distance", "description": "Sum of total_distance across the selection", "expression": "SUM(`total_distance`)"},
+        {"displayName": "Avg Distance per Trip", "description": "Weighted average trip distance", "expression": "SUM(`total_distance`) / SUM(`trip_count`)"}
+      ]
+    },
+    {
+      "name": "ds_price_hikes_main",
+      "displayName": "Price hikes (daily, by location)",
+      "queryLines": [
+        "SELECT pickup_location, pickup_date, total_improvement_surcharge, total_congestion_surcharge, ",
+        "       total_airport_fee, total_cbd_congestion_fee, total_price_hikes, ",
+        "       total_amount_sum, avg_total_amount, trip_count, had_any_surcharge ",
+        "FROM yellow_tripdata_price_hikes ",
+        "WHERE pickup_date BETWEEN DATE'2009-01-01' AND DATE'2026-12-31' ",
+        "  AND pickup_location IS NOT NULL AND pickup_location != '' "
+      ],
+      "columns": [
+        {"displayName": "Total Price Hikes (M)", "description": "Sum of total_price_hikes across the selection, in millions of dollars", "expression": "SUM(`total_price_hikes`) / 1000000.0"},
+        {"displayName": "Total Amount (M)", "description": "Sum of total_amount_sum across the selection, in millions of dollars", "expression": "SUM(`total_amount_sum`) / 1000000.0"},
+        {"displayName": "Pct Trips With Surcharge", "description": "Trip-weighted share of trips with any surcharge (0-1)", "expression": "SUM(CASE WHEN `had_any_surcharge` THEN `trip_count` ELSE 0 END) * 1.0 / SUM(`trip_count`)"}
+      ]
+    },
+    {
+      "name": "ds_price_hikes_trend",
+      "displayName": "Price hikes over time (2009-2026)",
+      "queryLines": [
+        "SELECT pickup_date, total_price_hikes ",
+        "FROM yellow_tripdata_price_hikes ",
+        "WHERE pickup_date BETWEEN DATE'2009-01-01' AND DATE'2026-12-31' "
+      ]
+    },
+    {
+      "name": "ds_surcharge_breakdown",
+      "displayName": "Surcharge type breakdown (2009-2026)",
+      "queryLines": [
+        "SELECT stack(4, ",
+        "  'Improvement Surcharge', SUM(total_improvement_surcharge) / 1000000.0, ",
+        "  'Congestion Surcharge', SUM(total_congestion_surcharge) / 1000000.0, ",
+        "  'Airport Fee', SUM(total_airport_fee) / 1000000.0, ",
+        "  'CBD Congestion Fee', SUM(total_cbd_congestion_fee) / 1000000.0 ",
+        ") AS (surcharge_type, total_amount) ",
+        "FROM yellow_tripdata_price_hikes ",
+        "WHERE pickup_date BETWEEN DATE'2009-01-01' AND DATE'2026-12-31' "
+      ]
+    },
+    {
+      "name": "ds_top_locations",
+      "displayName": "Top locations by price hikes (2009-2026)",
+      "queryLines": [
+        "SELECT pickup_location, SUM(total_price_hikes) / 1000000.0 AS total_price_hikes_m, ",
+        "       SUM(trip_count) AS trip_count, ",
+        "       SUM(CASE WHEN had_any_surcharge THEN 1 ELSE 0 END) AS days_with_surcharge ",
+        "FROM yellow_tripdata_price_hikes ",
+        "WHERE pickup_date BETWEEN DATE'2009-01-01' AND DATE'2026-12-31' ",
+        "  AND pickup_location IS NOT NULL AND pickup_location != '' ",
+        "GROUP BY pickup_location ",
+        "ORDER BY total_price_hikes_m DESC ",
+        "LIMIT 15 "
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "trip_summary",
+      "displayName": "Trip Summary",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {"name": "ts-title", "multilineTextboxSpec": {"lines": ["# Yellow Taxi — Trip Summary"]}},
+          "position": {"x": 0, "y": 0, "width": 12, "height": 1}
+        },
+        {
+          "widget": {"name": "ts-subtitle", "multilineTextboxSpec": {"lines": ["Trip volume and distance across NYC yellow taxi history (2009–2026), by vendor and payment type."]}},
+          "position": {"x": 0, "y": 1, "width": 12, "height": 1}
+        },
+        {
+          "widget": {
+            "name": "ts-filter-date",
+            "queries": [{"name": "q_ts_date", "query": {"datasetName": "ds_trip_summary", "fields": [{"name": "year_month", "expression": "`year_month`"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "filter-date-range-picker",
+              "encodings": {"fields": [{"fieldName": "year_month", "queryName": "q_ts_date"}]},
+              "frame": {"showTitle": true, "title": "Month"}
+            }
+          },
+          "position": {"x": 0, "y": 2, "width": 4, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "ts-filter-vendor",
+            "queries": [{"name": "q_ts_vendor", "query": {"datasetName": "ds_trip_summary", "fields": [{"name": "vendor_name", "expression": "`vendor_name`"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "filter-multi-select",
+              "encodings": {"fields": [{"fieldName": "vendor_name", "displayName": "Vendor", "queryName": "q_ts_vendor"}]},
+              "frame": {"showTitle": true, "title": "Vendor"}
+            }
+          },
+          "position": {"x": 4, "y": 2, "width": 4, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "ts-filter-payment",
+            "queries": [{"name": "q_ts_payment", "query": {"datasetName": "ds_trip_summary", "fields": [{"name": "payment_type", "expression": "`payment_type`"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "filter-multi-select",
+              "encodings": {"fields": [{"fieldName": "payment_type", "displayName": "Payment Type", "queryName": "q_ts_payment"}]},
+              "frame": {"showTitle": true, "title": "Payment Type"}
+            }
+          },
+          "position": {"x": 8, "y": 2, "width": 4, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "ts-kpi-trips",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_trip_summary", "fields": [
+              {"name": "measure(Total Trips)", "expression": "MEASURE(`Total Trips`)"},
+              {"name": "monthly(year_month)", "expression": "DATE_TRUNC(\"MONTH\", `year_month`)"}
+            ], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "measure(Total Trips)", "displayName": "Total Trips", "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}},
+                "period": {"fieldName": "monthly(year_month)"}
+              },
+              "frame": {"showTitle": true, "title": "Total Trips"}
+            }
+          },
+          "position": {"x": 0, "y": 4, "width": 4, "height": 4}
+        },
+        {
+          "widget": {
+            "name": "ts-kpi-distance",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_trip_summary", "fields": [{"name": "measure(Total Distance)", "expression": "MEASURE(`Total Distance`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "measure(Total Distance)", "displayName": "Total Distance (mi)", "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}}},
+              "frame": {"showTitle": true, "title": "Total Distance"}
+            }
+          },
+          "position": {"x": 4, "y": 4, "width": 4, "height": 4}
+        },
+        {
+          "widget": {
+            "name": "ts-kpi-avg-distance",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_trip_summary", "fields": [{"name": "measure(Avg Distance per Trip)", "expression": "MEASURE(`Avg Distance per Trip`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "measure(Avg Distance per Trip)", "displayName": "Avg mi/trip", "format": {"type": "number", "decimalPlaces": {"type": "max", "places": 2}}}},
+              "frame": {"showTitle": true, "title": "Avg Distance / Trip"}
+            }
+          },
+          "position": {"x": 8, "y": 4, "width": 4, "height": 4}
+        },
+        {
+          "widget": {
+            "name": "ts-trend",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_trip_summary", "fields": [
+              {"name": "year_month", "expression": "`year_month`"},
+              {"name": "vendor_name", "expression": "`vendor_name`"},
+              {"name": "sum(trip_count)", "expression": "SUM(`trip_count`)"}
+            ], "disaggregated": false, "orders": [{"direction": "ASC", "expression": "`year_month`"}]}}],
+            "spec": {
+              "version": 3, "widgetType": "line",
+              "encodings": {
+                "x": {"fieldName": "year_month", "scale": {"type": "temporal"}, "displayName": "Month"},
+                "y": {"fieldName": "sum(trip_count)", "scale": {"type": "quantitative"}, "displayName": "Trips", "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}},
+                "color": {"fieldName": "vendor_name", "scale": {"type": "categorical"}, "displayName": "Vendor"}
+              },
+              "frame": {"showTitle": true, "title": "Trips per Month by Vendor"}
+            }
+          },
+          "position": {"x": 0, "y": 8, "width": 12, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "ts-bar-vendor",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_trip_summary", "fields": [
+              {"name": "vendor_name", "expression": "`vendor_name`"},
+              {"name": "sum(trip_count)", "expression": "SUM(`trip_count`)"}
+            ], "disaggregated": false, "orders": [{"direction": "DESC", "expression": "SUM(`trip_count`)"}]}}],
+            "spec": {
+              "version": 3, "widgetType": "bar",
+              "encodings": {
+                "x": {"fieldName": "vendor_name", "scale": {"type": "categorical", "sort": {"by": "value"}}, "displayName": "Vendor"},
+                "y": {"fieldName": "sum(trip_count)", "scale": {"type": "quantitative"}, "displayName": "Trips", "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}},
+                "color": {"fieldName": "vendor_name", "scale": {"type": "categorical"}}
+              },
+              "frame": {"showTitle": true, "title": "Trips by Vendor"}
+            }
+          },
+          "position": {"x": 0, "y": 14, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "ts-pie-payment",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_trip_summary", "fields": [
+              {"name": "payment_type", "expression": "`payment_type`"},
+              {"name": "sum(trip_count)", "expression": "SUM(`trip_count`)"}
+            ], "disaggregated": false}}],
+            "spec": {
+              "version": 3, "widgetType": "pie",
+              "encodings": {
+                "angle": {"fieldName": "sum(trip_count)", "scale": {"type": "quantitative"}, "displayName": "Trips", "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}},
+                "color": {"fieldName": "payment_type", "scale": {"type": "categorical"}, "displayName": "Payment Type"},
+                "label": {"show": true}
+              },
+              "frame": {"showTitle": true, "title": "Trips by Payment Type"}
+            }
+          },
+          "position": {"x": 6, "y": 14, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "ts-table",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_trip_summary", "fields": [
+              {"name": "year_month", "expression": "`year_month`"},
+              {"name": "vendor_name", "expression": "`vendor_name`"},
+              {"name": "payment_type", "expression": "`payment_type`"},
+              {"name": "total_distance", "expression": "`total_distance`"},
+              {"name": "avg_distance", "expression": "`avg_distance`"},
+              {"name": "trip_count", "expression": "`trip_count`"}
+            ], "disaggregated": true, "orders": [{"direction": "DESC", "expression": "`year_month`"}]}}],
+            "spec": {
+              "version": 2, "widgetType": "table",
+              "encodings": {"columns": [
+                {"fieldName": "year_month", "displayName": "Month"},
+                {"fieldName": "vendor_name", "displayName": "Vendor"},
+                {"fieldName": "payment_type", "displayName": "Payment Type"},
+                {"fieldName": "total_distance", "displayName": "Total Distance (mi)", "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}},
+                {"fieldName": "avg_distance", "displayName": "Avg Distance (mi)", "format": {"type": "number", "decimalPlaces": {"type": "max", "places": 2}}},
+                {"fieldName": "trip_count", "displayName": "Trips", "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}}
+              ]},
+              "frame": {"showTitle": true, "title": "Detail"}
+            }
+          },
+          "position": {"x": 0, "y": 20, "width": 12, "height": 6}
+        }
+      ]
+    },
+    {
+      "name": "price_hikes",
+      "displayName": "Price Hikes",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {"name": "ph-title", "multilineTextboxSpec": {"lines": ["# Yellow Taxi — Price Hikes"]}},
+          "position": {"x": 0, "y": 0, "width": 12, "height": 1}
+        },
+        {
+          "widget": {"name": "ph-subtitle", "multilineTextboxSpec": {"lines": ["Surcharges (improvement, congestion, airport, CBD congestion) by pickup location and date. Defaulted to 2009–2026 — the real data span — to exclude a small number of malformed outlier dates."]}},
+          "position": {"x": 0, "y": 1, "width": 12, "height": 1}
+        },
+        {
+          "widget": {
+            "name": "ph-filter-date",
+            "queries": [{"name": "q_ph_date", "query": {"datasetName": "ds_price_hikes_main", "fields": [{"name": "pickup_date", "expression": "`pickup_date`"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "filter-date-range-picker",
+              "encodings": {"fields": [{"fieldName": "pickup_date", "queryName": "q_ph_date"}]},
+              "selection": {"defaultSelection": {"range": {"dataType": "DATE", "min": {"value": "2009-01-01"}, "max": {"value": "2026-12-31"}}}},
+              "frame": {"showTitle": true, "title": "Pickup Date"}
+            }
+          },
+          "position": {"x": 0, "y": 2, "width": 12, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "ph-kpi-total-hikes",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_price_hikes_main", "fields": [
+              {"name": "measure(Total Price Hikes (M))", "expression": "MEASURE(`Total Price Hikes (M)`)"},
+              {"name": "weekly(pickup_date)", "expression": "DATE_TRUNC(\"WEEK\", `pickup_date`)"}
+            ], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "measure(Total Price Hikes (M))", "displayName": "Total Price Hikes", "format": {"type": "number-currency", "currencyCode": "USD", "decimalPlaces": {"type": "max", "places": 2}}, "formatTemplate": "{{@formatted}}M"}
+              },
+              "frame": {"showTitle": true, "title": "Total Price Hikes"}
+            }
+          },
+          "position": {"x": 0, "y": 4, "width": 4, "height": 4}
+        },
+        {
+          "widget": {
+            "name": "ph-kpi-pct-surcharge",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_price_hikes_main", "fields": [{"name": "measure(Pct Trips With Surcharge)", "expression": "MEASURE(`Pct Trips With Surcharge`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "measure(Pct Trips With Surcharge)", "displayName": "% Trips w/ Surcharge", "format": {"type": "number-percent", "decimalPlaces": {"type": "max", "places": 1}}}},
+              "frame": {"showTitle": true, "title": "% Trips With Any Surcharge"}
+            }
+          },
+          "position": {"x": 4, "y": 4, "width": 4, "height": 4}
+        },
+        {
+          "widget": {
+            "name": "ph-kpi-total-amount",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_price_hikes_main", "fields": [{"name": "measure(Total Amount (M))", "expression": "MEASURE(`Total Amount (M)`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2, "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "measure(Total Amount (M))", "displayName": "Total Amount Collected", "format": {"type": "number-currency", "currencyCode": "USD", "decimalPlaces": {"type": "max", "places": 2}}, "formatTemplate": "{{@formatted}}M"}},
+              "frame": {"showTitle": true, "title": "Total Amount Collected"}
+            }
+          },
+          "position": {"x": 8, "y": 4, "width": 4, "height": 4}
+        },
+        {
+          "widget": {
+            "name": "ph-trend",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_price_hikes_trend", "fields": [
+              {"name": "pickup_date", "expression": "`pickup_date`"},
+              {"name": "sum(total_price_hikes)", "expression": "SUM(`total_price_hikes`)"}
+            ], "disaggregated": false, "orders": [{"direction": "ASC", "expression": "`pickup_date`"}]}}],
+            "spec": {
+              "version": 3, "widgetType": "line",
+              "encodings": {
+                "x": {"fieldName": "pickup_date", "scale": {"type": "temporal"}, "displayName": "Date"},
+                "y": {"fieldName": "sum(total_price_hikes)", "scale": {"type": "quantitative"}, "displayName": "Price Hikes ($)", "format": {"type": "number-currency", "currencyCode": "USD", "decimalPlaces": {"type": "max", "places": 2}}}
+              },
+              "frame": {"showTitle": true, "showDescription": true, "description": "Fixed to 2009-2026 (not affected by the date filter above).", "title": "Price Hikes Over Time (All Locations)"}
+            }
+          },
+          "position": {"x": 0, "y": 8, "width": 12, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "ph-pie-surcharge-type",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_surcharge_breakdown", "fields": [
+              {"name": "surcharge_type", "expression": "`surcharge_type`"},
+              {"name": "total_amount", "expression": "`total_amount`"}
+            ], "disaggregated": true}}],
+            "spec": {
+              "version": 3, "widgetType": "pie",
+              "encodings": {
+                "angle": {"fieldName": "total_amount", "scale": {"type": "quantitative"}, "displayName": "Amount ($M)", "format": {"type": "number-currency", "currencyCode": "USD", "decimalPlaces": {"type": "max", "places": 2}}},
+                "color": {"fieldName": "surcharge_type", "scale": {"type": "categorical"}, "displayName": "Surcharge Type"},
+                "label": {"show": true}
+              },
+              "frame": {"showTitle": true, "showDescription": true, "description": "Fixed to 2009-2026 (not affected by the date filter above).", "title": "Surcharge-Type Contribution"}
+            }
+          },
+          "position": {"x": 0, "y": 14, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "ph-table-top-locations",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_top_locations", "fields": [
+              {"name": "pickup_location", "expression": "`pickup_location`"},
+              {"name": "total_price_hikes_m", "expression": "`total_price_hikes_m`"},
+              {"name": "trip_count", "expression": "`trip_count`"},
+              {"name": "days_with_surcharge", "expression": "`days_with_surcharge`"}
+            ], "disaggregated": true, "orders": [{"direction": "DESC", "expression": "`total_price_hikes_m`"}]}}],
+            "spec": {
+              "version": 2, "widgetType": "table",
+              "encodings": {"columns": [
+                {"fieldName": "pickup_location", "displayName": "Pickup Location"},
+                {"fieldName": "total_price_hikes_m", "displayName": "Total Price Hikes ($M)", "format": {"type": "number-currency", "currencyCode": "USD", "decimalPlaces": {"type": "max", "places": 2}}},
+                {"fieldName": "trip_count", "displayName": "Trips", "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}},
+                {"fieldName": "days_with_surcharge", "displayName": "Days w/ Surcharge"}
+              ]},
+              "frame": {"showTitle": true, "showDescription": true, "description": "Top 15, fixed to 2009-2026 (not affected by the date filter above).", "title": "Top Pickup Locations by Price Hikes"}
+            }
+          },
+          "position": {"x": 6, "y": 14, "width": 6, "height": 6}
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {"light": "#FCFCFC", "dark": "#1F272D"},
+      "widgetBackgroundColor": {"light": "#FFFFFF", "dark": "#11171C"},
+      "widgetBorderColor": {"light": "#FFFFFF", "dark": "#11171C"},
+      "fontColor": {"light": "#11171C", "dark": "#E8ECF0"},
+      "selectionColor": {"light": "#0072B2", "dark": "#56B4E9"},
+      "visualizationColors": ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#D55E00", "#56B4E9"],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}
