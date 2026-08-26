@@ -79,7 +79,6 @@ def replacing_nulls_with_default(df, column_name, default_value):
     ),
 )
 def yellow_tripdata_silver():
-    # .pipe() isn't supported on serverless (Spark Connect) — chain via plain calls instead.
     df = spark.readStream.table("yellow_tripdata_raw")
     df = trim_whitespace(df)
     df = mapping_with_defaults(df, PAYMENT_TYPE_LOOKUP, "payment_type")
@@ -87,4 +86,7 @@ def yellow_tripdata_silver():
     df = mapping_with_defaults(df, STORE_AND_FWD_FLAG_LOOKUP, "store_and_fwd_flag", "N")
     df = replacing_nulls_with_default(df, "passenger_count", 99)
     df = replacing_nulls_with_default(df, "rate_code_id", 99)
+    list_of_surcharges = ["improvement_surcharge", "congestion_surcharge", "airport_fee", "cbd_congestion_fee"]
+    for surcharge in list_of_surcharges:
+        df = replacing_nulls_with_default(df, surcharge, 0.0)
     return df
