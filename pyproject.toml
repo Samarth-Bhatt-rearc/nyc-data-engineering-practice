@@ -19,6 +19,20 @@ dev = [
     "databricks-connect>=15.4,<15.5",
     "ipykernel",
 ]
+# Separate from `dev` on purpose: databricks-connect and plain pyspark both occupy
+# the `pyspark` import namespace and conflict if installed together, and
+# databricks-connect's SparkSession restricts local (non-Databricks) execution.
+# Install this group in its own venv directory (not the shared .venv `dev` uses,
+# which would need re-syncing every time you switch between dev work and tests):
+#   UV_PROJECT_ENVIRONMENT=.venv-test uv sync --group test --no-group dev
+# Then run pytest via that venv's own binary, NOT `uv run` — `uv run` auto-resyncs
+# the `dev` group back in (reinstalling databricks-connect over pyspark) even with
+# --no-group dev/--only-group test passed:
+#   .venv-test/bin/pytest
+test = [
+    "pytest",
+    "pyspark>=3.5,<4",
+]
 
 [project.scripts]
 main = "nyc_data_analysis_project.main:main"

@@ -1,5 +1,16 @@
+# Gold layer: trip counts/distance rolled up by year, month, vendor, and payment
+# type — backs the dashboard's "Trip Summary" page.
+#
+# The aggregation logic lives in summary_logic.py (no pyspark.pipelines import
+# there) so it can be unit tested outside a live pipeline — see
+# tests/test_gold_summary_logic.py.
+import os
+import sys
+
 from pyspark import pipelines as dp
-from pyspark.sql import functions as F
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from summary_logic import build_trip_summary  # noqa: E402
 
 
 @dp.materialized_view(
@@ -11,12 +22,5 @@ from pyspark.sql import functions as F
     cluster_by=["year", "month"],
 )
 def yellow_tripdata_gold():
-    return (
-        spark.read.table("yellow_tripdata_silver")
-        .groupBy("year", "month", "vendor_name", "payment_type")
-        .agg(
-            F.sum("trip_distance").alias("total_distance"),
-            F.avg("trip_distance").alias("avg_distance"),
-            F.count("*").alias("trip_count"),
-        )
-    )
+    """Materialized view: trip summary aggregated from yellow_tripdata_silver."""
+    return build_trip_summary(spark.read.table("yellow_tripdata_silver"))

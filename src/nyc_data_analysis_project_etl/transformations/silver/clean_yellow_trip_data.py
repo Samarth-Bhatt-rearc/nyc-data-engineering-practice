@@ -1,76 +1,25 @@
+# Silver layer: cleans bronze's yellow_tripdata_raw — trims whitespace, normalizes
+# payment/vendor/store-and-forward codes (which vary by era: numeric codes, 3-letter
+# abbreviations, and full words all show up across 2009-2026) to consistent values,
+# and fills sentinel defaults where a field is legitimately missing.
+#
+# The actual cleaning logic lives in logic.py (no pyspark.pipelines import there)
+# so it can be unit tested outside a live pipeline — see tests/test_silver_logic.py.
+import os
+import sys
+
 from pyspark import pipelines as dp
-from pyspark.sql import functions as F
 
-PAYMENT_TYPE_LOOKUP = {
-    "0": "Flex Fare Trip",
-    "1": "Credit Card",
-    "2": "Cash",
-    "3": "No Charge",
-    "4": "Dispute",
-    "5": "Unknown",
-    "6": "Voided Trip",
-    "Cas": "Cash",
-    "Csh": "Cash",
-    "Cre": "Credit Card",
-    "Na": "Unknown",
-    "Dis": "Dispute",
-    "No": "No Charge",
-    "Noc": "No Charge",
-    "Crd": "Credit Card",
-    "Dispute": "Dispute",
-    "Cash": "Cash",
-    "Credit": "Credit Card",
-    "No Charge": "No Charge",
-}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from logic import (  # noqa: E402
+    PAYMENT_TYPE_LOOKUP,
+    STORE_AND_FWD_FLAG_LOOKUP,
+    VENDOR_LOOKUP,
+    mapping_with_defaults,
+    replacing_nulls_with_default,
+    trim_whitespace,
+)
 
-VENDOR_LOOKUP = {
-    "1": "Creative Mobile Technologies, LLC",
-    "2": "Curb Mobility, LLC",
-    "6": "Myle Technologies Inc",
-    "7": "Helix",
-    "Cmt": "Creative Mobile Technologies, LLC",
-    "Vts": "VTS",
-    "Dds": "DDS",
-}
-
-STORE_AND_FWD_FLAG_LOOKUP = {
-    "Y": "Y",
-    "N": "N",
-    "0.0": "N",
-    "1.0": "Y",
-    "0": "N",
-    "1": "Y",
-}
-
-
-
-# Trim whitespace from string columns only — trim() errors on non-string types
-# (this table has timestamp/double/int columns alongside the string ones).
-def trim_whitespace(df):
-    string_cols = {f.name for f in df.schema.fields if f.dataType.typeName() == "string"}
-    return df.select([F.trim(F.col(c)).alias(c) if c in string_cols else F.col(c) for c in df.columns])
-
-# Map values with defaults
-def mapping_with_defaults(df, lookup, column_name, default_value="Unknown", new_column_name=None):
-
-    if not new_column_name:
-        new_column_name = column_name
-
-    # Initialize the expression with a dummy condition or the first key
-    map_keys = list(lookup.keys())
-    expr = F.when(F.col(new_column_name) == map_keys[0], F.lit(lookup[map_keys[0]]))
-
-    # Dynamically chain the rest of the dictionary
-    for key in map_keys[1:]:
-        expr = expr.when(F.col(new_column_name) == key, F.lit(lookup[key]))
-
-    # Provide a fallback default value to protect your 1.8B row dataset
-    expr = expr.otherwise(F.lit(default_value))
-
-    return df.withColumn(new_column_name, F.initcap(F.col(column_name))).withColumn(new_column_name, expr)
-
-def replacing_nulls_with_default(df, column_name, default_value):
-    return df.withColumn(column_name, F.when(F.col(column_name).isNull(), F.lit(default_value)).otherwise(F.col(column_name)))
 
 @dp.table(
     name="yellow_tripdata_silver",
@@ -79,13 +28,19 @@ def replacing_nulls_with_default(df, column_name, default_value):
     ),
 )
 def yellow_tripdata_silver():
+    """Streaming table: clean bronze's yellow_tripdata_raw into yellow_tripdata_silver."""
     df = spark.readStream.table("yellow_tripdata_raw")
     df = trim_whitespace(df)
     df = mapping_with_defaults(df, PAYMENT_TYPE_LOOKUP, "payment_type")
+    # vendor_id (raw code) is kept as-is; vendor_name is the cleaned display name.
     df = mapping_with_defaults(df, VENDOR_LOOKUP, "vendor_id", new_column_name="vendor_name")
     df = mapping_with_defaults(df, STORE_AND_FWD_FLAG_LOOKUP, "store_and_fwd_flag", "N")
+    # 99 matches TLC's own documented sentinel for "Null/unknown" RatecodeID.
     df = replacing_nulls_with_default(df, "passenger_count", 99)
     df = replacing_nulls_with_default(df, "rate_code_id", 99)
+    # These fees didn't exist in earlier years (e.g. congestion_surcharge predates
+    # 2019), so bronze leaves them null for those rows — default to 0 so gold's
+    # SUMs/flags don't have to special-case nulls.
     list_of_surcharges = ["improvement_surcharge", "congestion_surcharge", "airport_fee", "cbd_congestion_fee"]
     for surcharge in list_of_surcharges:
         df = replacing_nulls_with_default(df, surcharge, 0.0)
