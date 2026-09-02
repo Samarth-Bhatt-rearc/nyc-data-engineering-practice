@@ -311,7 +311,7 @@
             "queries": [{"name": "main_query", "query": {"datasetName": "ds_price_hikes_main", "fields": [{"name": "measure(Total Amount (M))", "expression": "MEASURE(`Total Amount (M)`)"}], "disaggregated": false}}],
             "spec": {
               "version": 2, "widgetType": "counter",
-              "encodings": {"value": {"fieldName": "measure(Total Amount (M))", "displayName": "Total Amount Collected", "format": {"type": "number-currency", "currencyCode": "USD", "decimalPlaces": {"type": "max", "places": 2}}, "formatTemplate": "{{@formatted}}M"}},
+              "encodings": {"value": {"fieldName": "measure(Total Amount (M))", "displayName": "Total Amount Collected", "format": {"type": "number-currency", "currencyCode": "USD", "decimalPlaces": {"type": "max", "places": 2}, "abbreviation": "none"}, "formatTemplate": "{{@formatted}}M"}},
               "frame": {"showTitle": true, "title": "Total Amount Collected"}
             }
           },

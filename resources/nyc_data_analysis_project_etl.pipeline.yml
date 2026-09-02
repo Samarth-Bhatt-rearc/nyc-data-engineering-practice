@@ -18,6 +18,11 @@ resources:
         # Where the Yellow Taxi parquet files are landed (see src/nyc_data_analysis_project/main.py)
         # before this pipeline reads them.
         source_volume_path: /Volumes/${var.catalog}/${var.schema}/nyc_data_volume
+        # Disable Lakeflow's automatic retries (platform defaults: 5 update retries,
+        # 2 flow retries) so a genuine failure (e.g. a code bug) fails fast instead
+        # of silently retrying the same root cause for several minutes first.
+        pipelines.numUpdateRetryAttempts: "0"
+        pipelines.maxFlowRetryAttempts: "0"
 
       environment:
         dependencies:

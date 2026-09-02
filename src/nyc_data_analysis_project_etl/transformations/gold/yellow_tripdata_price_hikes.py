@@ -4,13 +4,11 @@
 # The aggregation logic lives in price_hikes_logic.py (no pyspark.pipelines
 # import there) so it can be unit tested outside a live pipeline — see
 # tests/test_gold_price_hikes_logic.py.
-import os
-import sys
-
+# Lakeflow automatically adds each pipeline source file's own directory to
+# sys.path, so a same-directory module resolves via a plain top-level import
+# with no manual path manipulation needed.
+from price_hikes_logic import build_price_hikes
 from pyspark import pipelines as dp
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from price_hikes_logic import build_price_hikes  # noqa: E402
 
 
 @dp.materialized_view(

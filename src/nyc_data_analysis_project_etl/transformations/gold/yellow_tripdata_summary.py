@@ -4,13 +4,12 @@
 # The aggregation logic lives in summary_logic.py (no pyspark.pipelines import
 # there) so it can be unit tested outside a live pipeline — see
 # tests/test_gold_summary_logic.py.
-import os
-import sys
-
 from pyspark import pipelines as dp
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from summary_logic import build_trip_summary  # noqa: E402
+# Lakeflow automatically adds each pipeline source file's own directory to
+# sys.path, so a same-directory module resolves via a plain top-level import
+# with no manual path manipulation needed.
+from summary_logic import build_trip_summary
 
 
 @dp.materialized_view(

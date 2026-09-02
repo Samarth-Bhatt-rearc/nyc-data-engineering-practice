@@ -3,15 +3,16 @@
 # abbreviations, and full words all show up across 2009-2026) to consistent values,
 # and fills sentinel defaults where a field is legitimately missing.
 #
-# The actual cleaning logic lives in logic.py (no pyspark.pipelines import there)
-# so it can be unit tested outside a live pipeline — see tests/test_silver_logic.py.
-import os
-import sys
-
+# The actual cleaning logic lives in silver_logic.py (no pyspark.pipelines import
+# there) so it can be unit tested outside a live pipeline — see tests/test_silver_logic.py.
+# Lakeflow automatically adds each pipeline source file's own directory to
+# sys.path, so a same-directory module resolves via a plain top-level import
+# with no manual path manipulation needed. The module is named silver_logic, not
+# logic — Lakeflow's sys.path additions are shared across the whole pipeline, not
+# scoped per source directory, so a same-named bronze/logic.py would collide with
+# this one via sys.modules and silently win depending on load order.
 from pyspark import pipelines as dp
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from logic import (  # noqa: E402
+from silver_logic import (
     PAYMENT_TYPE_LOOKUP,
     STORE_AND_FWD_FLAG_LOOKUP,
     VENDOR_LOOKUP,

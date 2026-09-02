@@ -27,12 +27,9 @@ def spark():
 
 
 def load_module_from_path(path, module_name):
-    # bronze/logic.py and silver/logic.py share a filename — a plain `import logic`
-    # from two different test files would collide via sys.modules and silently
-    # return whichever one loaded first. Loading each by its exact file path under
-    # a unique synthetic name sidesteps that entirely (and needs no sys.path
-    # changes here — the pipeline files' own sys.path trick is a separate,
-    # pipeline-execution-only concern, not exercised by these tests).
+    # Loading each logic module by its exact file path under an explicit name
+    # avoids any dependence on sys.path/sys.modules state — robust regardless of
+    # what other fixtures or test files have already imported.
     spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -41,12 +38,12 @@ def load_module_from_path(path, module_name):
 
 @pytest.fixture(scope="session")
 def bronze_logic():
-    return load_module_from_path(TRANSFORMATIONS / "bronze" / "logic.py", "bronze_logic")
+    return load_module_from_path(TRANSFORMATIONS / "bronze" / "bronze_logic.py", "bronze_logic")
 
 
 @pytest.fixture(scope="session")
 def silver_logic():
-    return load_module_from_path(TRANSFORMATIONS / "silver" / "logic.py", "silver_logic")
+    return load_module_from_path(TRANSFORMATIONS / "silver" / "silver_logic.py", "silver_logic")
 
 
 @pytest.fixture(scope="session")

@@ -4,19 +4,20 @@
 # column layouts over 2009-2026). All three flows append into one target table,
 # yellow_tripdata_raw, normalized to logic.CANONICAL_SCHEMA.
 #
-# The actual normalization logic lives in logic.py (no pyspark.pipelines import
-# there) so it can be unit tested outside a live pipeline — see
+# The actual normalization logic lives in bronze_logic.py (no pyspark.pipelines
+# import there) so it can be unit tested outside a live pipeline — see
 # tests/test_bronze_logic.py.
-import os
-import sys
-
+# Lakeflow automatically adds each pipeline source file's own directory to
+# sys.path, so a same-directory module resolves via a plain top-level import
+# with no manual path manipulation needed. (An earlier version of this file
+# used a __file__-based sys.path.insert instead — that crashed with
+# `NameError: name '__file__' is not defined`, since __file__ isn't set in the
+# pipeline execution context.) The module is named bronze_logic, not logic —
+# Lakeflow's sys.path additions are shared across the whole pipeline, not
+# scoped per source directory, so a same-named silver/logic.py would collide
+# with this one via sys.modules and silently win depending on load order.
+from bronze_logic import ERA_2009_COLUMNS, ERA_2010_COLUMNS, MODERN_COLUMNS, normalize
 from pyspark import pipelines as dp
-
-# Lakeflow's glob-based file discovery doesn't guarantee this file is loaded as
-# part of a real Python package, so a relative import isn't reliable here — add
-# this file's own directory to sys.path and import logic.py as a top-level module.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from logic import ERA_2009_COLUMNS, ERA_2010_COLUMNS, MODERN_COLUMNS, normalize  # noqa: E402
 
 
 def _read_era_stream(subfolder):
